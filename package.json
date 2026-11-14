@@ -1,0 +1,28 @@
+{
+	"name": "tm-ndi-metrics-relay",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Anonymous usage-report relay and private dashboard for TM NDI Display Manager (Cloudflare Worker + D1).",
+	"type": "module",
+	"scripts": {
+		"dev": "wrangler dev",
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"check": "npm run typecheck && npm run lint && npm test",
+		"db:migrate:local": "wrangler d1 migrations apply DB --local",
+		"db:migrate:remote": "wrangler d1 migrations apply DB --remote"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.6.7",
+		"@cloudflare/vitest-plugin": "1.8.2",
+		"@cloudflare/workers-types": "5.20261114.1",
+		"typescript": "7.0.2",
+		"vitest": "5.1.0",
+		"wrangler": "4.162.0"
+	}
+}

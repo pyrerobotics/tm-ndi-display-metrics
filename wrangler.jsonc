@@ -1,0 +1,53 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "tm-ndi-metrics-relay",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-11-01",
+
+	// Keep request logs off: Workers Logs would record request metadata
+	// (URL, headers, client details). The relay must not keep any of that.
+	"observability": { "enabled": false },
+
+	// Daily at 00:05 UTC: rotate the IP-hash salt, drop yesterday's per-IP
+	// counters, and delete reports older than RETENTION_DAYS.
+	"triggers": { "crons": ["5 0 * * *"] },
+
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "tm-ndi-metrics",
+			// OWNER: replace with the id printed by `wrangler d1 create tm-ndi-metrics`.
+			// Local dev and tests work with this placeholder.
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "migrations"
+		}
+	],
+
+	// Short-burst limit per client (keyed by the salted IP hash, never the raw IP).
+	// namespace_id is any positive integer you choose; it is not a secret.
+	"ratelimits": [
+		{
+			"name": "RATE_LIMITER",
+			"namespace_id": "1001",
+			"simple": { "limit": 30, "period": 60 }
+		}
+	],
+
+	// Safe defaults. To keep your real limits private, delete a line here and set
+	// it with `wrangler secret put NAME` instead; the Worker reads both the same way.
+	"vars": {
+		// Comma-separated app versions to accept. "" accepts nothing.
+		// Supports exact versions ("1.2.0"), prefixes ("1.2.*") and "*" (dev only).
+		"ALLOWED_APP_VERSIONS": "",
+		"MAX_LAUNCH_PER_INSTALL_PER_DAY": "1",
+		"MAX_CHANGE_PER_INSTALL_PER_DAY": "50",
+		"MAX_NEW_INSTALLS_PER_IP_PER_DAY": "20",
+		"MAX_REQUESTS_PER_IP_PER_DAY": "500",
+		"RETENTION_DAYS": "400",
+		// Cloudflare Access. Leave empty and /dashboard returns 404.
+		// ACCESS_TEAM_DOMAIN: "<team>.cloudflareaccess.com" (or just "<team>").
+		// ACCESS_AUD: the Application Audience (AUD) tag of the Access application.
+		"ACCESS_TEAM_DOMAIN": "",
+		"ACCESS_AUD": ""
+	}
+}
