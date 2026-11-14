@@ -1,6 +1,6 @@
 import { type Env, limits, utcDay } from "./env";
 import { claimNewInstall, countRequest, getDailySalt, hashIp } from "./iphash";
-import { isAllowedAppVersion, MAX_BODY_BYTES, parseReport } from "./schema";
+import { isAcceptedChannel, isAllowedAppVersion, MAX_BODY_BYTES, parseReport } from "./schema";
 import { countReportsToday, installExists, storeReport } from "./store";
 
 // Responses never carry a body, so nothing from the request is reflected back.
@@ -69,6 +69,9 @@ export async function handleReport(request: Request, env: Env, now: Date): Promi
 	if (!report || !isAllowedAppVersion(report.app_version, env.ALLOWED_APP_VERSIONS)) {
 		return empty(400);
 	}
+
+	// Valid reports from channels we don't keep (e.g. dev, e2e) are dropped quietly.
+	if (!isAcceptedChannel(report.channel, env.ACCEPTED_CHANNELS)) return empty(204);
 
 	// Per-install daily caps: extra reports are accepted but not stored, so a
 	// misbehaving client gets no signal to retry.

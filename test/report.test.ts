@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_BODY_BYTES } from "../src/schema";
-import { count, DAY, NOW, newIp, post, resetDb, TABLES, validReport } from "./helpers";
+import { APP_EXAMPLE, count, DAY, NOW, newIp, post, resetDb, TABLES, validReport } from "./helpers";
 
 beforeEach(resetDb);
 
@@ -25,7 +25,7 @@ describe("POST /v1/report", () => {
 			os: "windows",
 			os_version: "10.0.26200",
 			arch: "x86_64",
-			tm_version: "4.3.1",
+			tm_version: "2026_27.1.3",
 			ndi_version: "6.1.1",
 			servers_local: 1,
 			servers_remote: 0,
@@ -67,6 +67,46 @@ describe("POST /v1/report", () => {
 			{ position: 0, screen: "results" },
 		]);
 		expect(await count("installs")).toBe(1);
+	});
+
+	it("drops reports from non-release channels by default (204, not stored)", async () => {
+		const envOverride = { ALLOWED_APP_VERSIONS: "*" };
+		await expectEmpty(await post(APP_EXAMPLE, { envOverride }), 204);
+		await expectEmpty(await post(validReport({ channel: "e2e" })), 204);
+		expect(await count("reports")).toBe(0);
+		expect(await count("installs")).toBe(0);
+	});
+
+	it("stores the app's example report when its channel is accepted", async () => {
+		const envOverride = { ALLOWED_APP_VERSIONS: "*", ACCEPTED_CHANNELS: "release,dev" };
+		await expectEmpty(await post(APP_EXAMPLE, { envOverride }), 204);
+		const row = await env.DB.prepare(
+			"SELECT channel, app_version, tm_version, servers_local, servers_remote FROM reports",
+		).first();
+		expect(row).toEqual({
+			channel: "dev",
+			app_version: "9.8.7",
+			tm_version: "2026_27.1.3",
+			servers_local: 1,
+			servers_remote: 1,
+		});
+		const displays = await env.DB.prepare(
+			"SELECT type, frame_rate, running, run_seconds FROM displays ORDER BY position",
+		).all();
+		expect(displays.results).toEqual([
+			{ type: "audience", frame_rate: 59.94, running: 1, run_seconds: 125 },
+			{ type: "audience", frame_rate: 29.97, running: 0, run_seconds: 0 },
+			{ type: "field-queue", frame_rate: 29.97, running: 0, run_seconds: 0 },
+			{ type: "pit", frame_rate: 29.97, running: 0, run_seconds: 0 },
+		]);
+		const screens = await env.DB.prepare(
+			"SELECT position, screen FROM display_screens ORDER BY position, screen",
+		).all();
+		expect(screens.results).toEqual([
+			{ position: 0, screen: "all" },
+			{ position: 1, screen: "intro" },
+			{ position: 1, screen: "rankings" },
+		]);
 	});
 
 	it("stores a report with the maximum number of displays", async () => {

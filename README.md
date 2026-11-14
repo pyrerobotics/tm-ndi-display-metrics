@@ -13,11 +13,12 @@ Each accepted report becomes one row in `reports` and one row per display in
 
 - a random install ID made by the app (not linked to a person or machine)
 - why the report was sent (`launch` or `change`)
-- app version and channel, OS, OS version, CPU architecture
+- app version and release channel, OS, OS version, CPU architecture
 - Tournament Manager and NDI runtime versions
 - how many local and remote TM servers are configured
 - for each display: type, screens, transparency, audio on/off, resolution,
-  frame rate, whether it is running, and how long it has run
+  frame rate, whether it is running, and how long it ran since the app's
+  previous report
 - the UTC time the relay received it
 
 The `installs` table keeps each install ID's first and last day seen.
@@ -86,45 +87,72 @@ Example:
 ```json
 {
 	"schema": 1,
-	"install_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+	"install_id": "00000000-0000-4000-8000-000000000000",
 	"reason": "launch",
-	"app_version": "1.0.0",
+	"app_version": "9.8.7",
 	"channel": "release",
 	"os": "windows",
 	"os_version": "10.0.26200",
 	"arch": "x86_64",
-	"tm_version": "4.3.1",
+	"tm_version": "2026_27.1.3",
 	"ndi_version": "6.1.1",
-	"servers": { "local": 1, "remote": 0 },
+	"servers_local": 1,
+	"servers_remote": 1,
+	"display_count": 2,
+	"running_count": 1,
 	"displays": [
 		{
 			"type": "audience",
-			"screens": ["intro", "in-match", "results"],
+			"screens": ["intro", "rankings"],
 			"transparency": "flatten",
 			"audio": true,
-			"resolution": "1920x1080",
-			"frame_rate": 59.94,
+			"resolution": "1280x720",
+			"frame_rate": "59.94",
 			"running": true,
-			"run_seconds": 3600
+			"run_seconds": 125
+		},
+		{
+			"type": "pit",
+			"screens": [],
+			"transparency": "alpha",
+			"audio": false,
+			"resolution": "1920x1080",
+			"frame_rate": "29.97",
+			"running": false,
+			"run_seconds": 0
 		}
 	]
 }
 ```
 
+Rules worth knowing (all in `src/schema.ts`):
+
+- Every field is required. `tm_version` and `ndi_version` may be `null`.
+- `channel` is `release`, `dev` or `e2e`. Only channels in
+  `ACCEPTED_CHANNELS` (default `release`) are stored. Others get `204` and
+  are dropped.
+- `display_count` must equal the number of displays, and `running_count` the
+  number with `running: true`.
+- `screens` is non-empty for `audience` displays and `[]` for
+  `field-queue` and `pit`.
+- `frame_rate` is a string: `25`, `29.97`, `30`, `50`, `59.94` or `60`.
+- `run_seconds` is time run since the app's previous report, at most 7 days.
+
 ## Settings
 
 Vars (in `wrangler.jsonc`, all strings):
 
-| Name                              | Default            | Meaning                                                                           |
-| --------------------------------- | ------------------ | --------------------------------------------------------------------------------- |
-| `ALLOWED_APP_VERSIONS`            | `""` (accept none) | Comma-separated. Exact (`1.2.0`), prefix (`1.2.*`), or `*` for local testing only |
-| `MAX_LAUNCH_PER_INSTALL_PER_DAY`  | `1`                | Stored launch reports per install per UTC day                                     |
-| `MAX_CHANGE_PER_INSTALL_PER_DAY`  | `50`               | Stored change reports per install per UTC day                                     |
-| `MAX_NEW_INSTALLS_PER_IP_PER_DAY` | `20`               | New install IDs per IP per UTC day                                                |
-| `MAX_REQUESTS_PER_IP_PER_DAY`     | `500`              | Requests per IP per UTC day                                                       |
-| `RETENTION_DAYS`                  | `400`              | Days to keep reports                                                              |
-| `ACCESS_TEAM_DOMAIN`              | `""`               | Your Access team domain, e.g. `myteam.cloudflareaccess.com`                       |
-| `ACCESS_AUD`                      | `""`               | The Access application's Audience (AUD) tag                                       |
+| Name                              | Default            | Meaning                                                                                     |
+| --------------------------------- | ------------------ | ------------------------------------------------------------------------------------------- |
+| `ALLOWED_APP_VERSIONS`            | `""` (accept none) | Comma-separated. Exact (`1.2.0`), prefix (`1.2.*`), or `*` for local testing only           |
+| `ACCEPTED_CHANNELS`               | `release`          | Comma-separated channels to store (`release`, `dev`, `e2e`). Others get 204 and are dropped |
+| `MAX_LAUNCH_PER_INSTALL_PER_DAY`  | `1`                | Stored launch reports per install per UTC day                                               |
+| `MAX_CHANGE_PER_INSTALL_PER_DAY`  | `50`               | Stored change reports per install per UTC day                                               |
+| `MAX_NEW_INSTALLS_PER_IP_PER_DAY` | `20`               | New install IDs per IP per UTC day                                                          |
+| `MAX_REQUESTS_PER_IP_PER_DAY`     | `500`              | Requests per IP per UTC day                                                                 |
+| `RETENTION_DAYS`                  | `400`              | Days to keep reports                                                                        |
+| `ACCESS_TEAM_DOMAIN`              | `""`               | Your Access team domain, e.g. `myteam.cloudflareaccess.com`                                 |
+| `ACCESS_AUD`                      | `""`               | The Access application's Audience (AUD) tag                                                 |
 
 If `ACCESS_TEAM_DOMAIN` or `ACCESS_AUD` is empty, `/dashboard` returns 404.
 
@@ -149,7 +177,7 @@ npm run lint        # Biome (lint + format check); `npm run format` fixes
 Run the Worker locally with a local D1:
 
 ```sh
-cp .dev.vars.example .dev.vars     # sets ALLOWED_APP_VERSIONS="*"
+cp .dev.vars.example .dev.vars     # allows any app version and the dev channel
 npm run db:migrate:local
 npm run dev                        # http://localhost:8787
 ```

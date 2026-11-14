@@ -188,15 +188,16 @@ describe("dashboard data", () => {
 			app_version: "1.1.0",
 			tm_version: null,
 			ndi_version: "6.0.0",
-			channel: "beta",
-			servers: { local: 0, remote: 2 },
+			servers_local: 0,
+			servers_remote: 2,
 			displays: [
 				{
 					type: "pit",
+					screens: [],
 					transparency: "flatten",
 					audio: false,
 					resolution: "3840x2160",
-					frame_rate: 60,
+					frame_rate: "60",
 					running: true,
 					run_seconds: 1800,
 				},
@@ -210,6 +211,8 @@ describe("dashboard data", () => {
 		await post({ ...a, app_version: "1.1.2", reason: "change" }, { ip: ip(), now: at(0, 9) });
 		// B: two days ago only.
 		await post(b, { ip: ip(), now: at(-2, 15) });
+		// A dev-channel install: accepted but never stored, so never counted.
+		await post(validReport({ channel: "dev" }), { ip: ip(), now: at(0, 11) });
 		// C: today.
 		await post(c, { ip: ip(), now: at(0, 10) });
 		// Old: 20 days ago (outside 7-day range, inside 30).
@@ -240,6 +243,7 @@ describe("dashboard data", () => {
 			{ label: "1.1.0", count: 1 },
 			{ label: "1.1.2", count: 1 },
 		]);
+		expect(d.channel).toEqual([{ label: "release", count: 3 }]);
 		expect(d.os).toEqual([
 			{ label: "Windows", count: 2 },
 			{ label: "macOS", count: 1 },
@@ -253,7 +257,7 @@ describe("dashboard data", () => {
 			{ label: "aarch64", count: 1 },
 		]);
 		expect(d.tmVersion).toEqual([
-			{ label: "4.3.1", count: 2 },
+			{ label: "2026_27.1.3", count: 2 },
 			{ label: "Not reported", count: 1 },
 		]);
 		expect(d.ndiVersion).toEqual([

@@ -39,6 +39,9 @@
 		// Comma-separated app versions to accept. "" accepts nothing.
 		// Supports exact versions ("1.2.0"), prefixes ("1.2.*") and "*" (dev only).
 		"ALLOWED_APP_VERSIONS": "",
+		// Comma-separated release channels to store ("release", "dev", "e2e").
+		// Valid reports from other channels get 204 and are dropped.
+		"ACCEPTED_CHANNELS": "release",
 		"MAX_LAUNCH_PER_INSTALL_PER_DAY": "1",
 		"MAX_CHANGE_PER_INSTALL_PER_DAY": "50",
 		"MAX_NEW_INSTALLS_PER_IP_PER_DAY": "20",

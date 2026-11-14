@@ -24,14 +24,21 @@ export const MAX_SERVERS = 1000;
 /** Longest accepted free-text version string (os_version, tm_version, ndi_version). */
 export const MAX_VERSION_LENGTH = 64;
 
-/** Largest accepted run_seconds (ten years). */
-export const MAX_RUN_SECONDS = 10 * 365 * 24 * 3600;
+/**
+ * Largest accepted run_seconds. The app sends time run since its previous
+ * report, so anything over seven days is junk.
+ */
+export const MAX_RUN_SECONDS = 7 * 24 * 3600;
 
 export const REASONS = ["launch", "change"] as const;
 export const OSES = ["windows", "macos", "linux"] as const;
 export const ARCHES = ["x86_64", "aarch64"] as const;
 export const DISPLAY_TYPES = ["audience", "field-queue", "pit"] as const;
 export const TRANSPARENCY = ["alpha", "flatten"] as const;
+/** Release channels the app can send. Which are stored is the ACCEPTED_CHANNELS var. */
+export const CHANNELS = ["release", "dev", "e2e"] as const;
+/** Frame rates the app offers, sent as strings. */
+export const FRAME_RATES = ["25", "29.97", "30", "50", "59.94", "60"] as const;
 
 /** Screen keys an audience display may show. */
 export const SCREENS = [
@@ -57,15 +64,17 @@ export type Arch = (typeof ARCHES)[number];
 export type DisplayType = (typeof DISPLAY_TYPES)[number];
 export type Transparency = (typeof TRANSPARENCY)[number];
 export type Screen = (typeof SCREENS)[number];
+export type Channel = (typeof CHANNELS)[number];
+export type FrameRate = (typeof FRAME_RATES)[number];
 
 export interface Display {
 	type: DisplayType;
-	/** Only present for audience displays. Sorted and de-duplicated. */
-	screens: Screen[] | null;
+	/** Non-empty for audience displays, empty otherwise. Sorted and de-duplicated. */
+	screens: Screen[];
 	transparency: Transparency;
 	audio: boolean;
 	resolution: string;
-	frame_rate: number;
+	frame_rate: FrameRate;
 	running: boolean;
 	run_seconds: number;
 }
@@ -75,13 +84,18 @@ export interface Report {
 	install_id: string;
 	reason: Reason;
 	app_version: string;
-	channel: string | null;
+	channel: Channel;
 	os: Os;
 	os_version: string;
 	arch: Arch;
 	tm_version: string | null;
 	ndi_version: string | null;
-	servers: { local: number; remote: number };
+	servers_local: number;
+	servers_remote: number;
+	/** Always equal to displays.length (checked). */
+	display_count: number;
+	/** Always equal to the number of running displays (checked). */
+	running_count: number;
 	displays: Display[];
 }
 
@@ -96,11 +110,13 @@ const REPORT_KEYS = new Set([
 	"arch",
 	"tm_version",
 	"ndi_version",
-	"servers",
+	"servers_local",
+	"servers_remote",
+	"display_count",
+	"running_count",
 	"displays",
 ]);
-const OPTIONAL_REPORT_KEYS = new Set(["channel"]);
-const SERVER_KEYS = new Set(["local", "remote"]);
+const OPTIONAL_REPORT_KEYS = new Set<string>();
 const DISPLAY_KEYS = new Set([
 	"type",
 	"screens",
@@ -111,19 +127,17 @@ const DISPLAY_KEYS = new Set([
 	"running",
 	"run_seconds",
 ]);
-const OPTIONAL_DISPLAY_KEYS = new Set(["screens"]);
+const OPTIONAL_DISPLAY_KEYS = new Set<string>();
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 // Semantic Versioning 2.0.0 (https://semver.org), length-capped separately.
 const SEMVER =
 	/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 const MAX_APP_VERSION_LENGTH = 64;
-const CHANNEL = /^[a-z0-9][a-z0-9._-]{0,31}$/;
 // Printable ASCII, no leading/trailing space.
 const VERSION_TEXT = /^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/;
 const RESOLUTION = /^([1-9]\d{0,4})x([1-9]\d{0,4})$/;
 const MAX_DIMENSION = 16384;
-const MAX_FRAME_RATE = 1000;
 
 /** Thrown internally on any invalid input. Never shown to the client. */
 class Invalid extends Error {}
@@ -174,31 +188,20 @@ function parseDisplay(v: unknown): Display {
 	checkKeys(v, DISPLAY_KEYS, OPTIONAL_DISPLAY_KEYS);
 	const type = oneOf(v.type, DISPLAY_TYPES);
 
-	let screens: Screen[] | null = null;
-	if ("screens" in v) {
-		if (type !== "audience" || !Array.isArray(v.screens)) fail();
-		if (v.screens.length > SCREENS.length) fail();
-		const set = new Set<Screen>();
-		for (const s of v.screens) {
-			const screen = oneOf(s, SCREENS);
-			if (set.has(screen)) fail();
-			set.add(screen);
-		}
-		screens = [...set].sort();
+	// Audience displays list at least one screen; other types send [].
+	if (!Array.isArray(v.screens) || v.screens.length > SCREENS.length) fail();
+	if ((type === "audience") !== v.screens.length > 0) fail();
+	const set = new Set<Screen>();
+	for (const s of v.screens) {
+		const screen = oneOf(s, SCREENS);
+		if (set.has(screen)) fail();
+		set.add(screen);
 	}
+	const screens = [...set].sort();
 
 	if (typeof v.resolution !== "string") fail();
 	const m = RESOLUTION.exec(v.resolution);
 	if (!m || Number(m[1]) > MAX_DIMENSION || Number(m[2]) > MAX_DIMENSION) fail();
-
-	const frameRate = v.frame_rate;
-	if (
-		typeof frameRate !== "number" ||
-		!Number.isFinite(frameRate) ||
-		frameRate <= 0 ||
-		frameRate > MAX_FRAME_RATE
-	)
-		fail();
 
 	return {
 		type,
@@ -206,7 +209,7 @@ function parseDisplay(v: unknown): Display {
 		transparency: oneOf(v.transparency, TRANSPARENCY),
 		audio: bool(v.audio),
 		resolution: v.resolution,
-		frame_rate: frameRate,
+		frame_rate: oneOf(v.frame_rate, FRAME_RATES),
 		running: bool(v.running),
 		run_seconds: int(v.run_seconds, 0, MAX_RUN_SECONDS),
 	};
@@ -234,35 +237,30 @@ export function parseReport(input: unknown): Report | null {
 		)
 			fail();
 
-		let channel: string | null = null;
-		if ("channel" in input && input.channel !== null) {
-			if (typeof input.channel !== "string" || !CHANNEL.test(input.channel)) fail();
-			channel = input.channel;
-		}
-
-		const servers = input.servers;
-		if (!isPlainObject(servers)) fail();
-		checkKeys(servers, SERVER_KEYS, new Set());
-
 		const displays = input.displays;
 		if (!Array.isArray(displays) || displays.length > MAX_DISPLAYS) fail();
+		const parsedDisplays = displays.map(parseDisplay);
+		const displayCount = int(input.display_count, 0, MAX_DISPLAYS);
+		const runningCount = int(input.running_count, 0, MAX_DISPLAYS);
+		if (displayCount !== parsedDisplays.length) fail();
+		if (runningCount !== parsedDisplays.filter((d) => d.running).length) fail();
 
 		return {
 			schema: SCHEMA_VERSION,
 			install_id: installId,
 			reason: oneOf(input.reason, REASONS),
 			app_version: appVersion,
-			channel,
+			channel: oneOf(input.channel, CHANNELS),
 			os: oneOf(input.os, OSES),
 			os_version: versionText(input.os_version),
 			arch: oneOf(input.arch, ARCHES),
 			tm_version: nullableVersionText(input.tm_version),
 			ndi_version: nullableVersionText(input.ndi_version),
-			servers: {
-				local: int(servers.local, 0, MAX_SERVERS),
-				remote: int(servers.remote, 0, MAX_SERVERS),
-			},
-			displays: displays.map(parseDisplay),
+			servers_local: int(input.servers_local, 0, MAX_SERVERS),
+			servers_remote: int(input.servers_remote, 0, MAX_SERVERS),
+			display_count: displayCount,
+			running_count: runningCount,
+			displays: parsedDisplays,
 		};
 	} catch (e) {
 		if (e instanceof Invalid) return null;
@@ -287,4 +285,16 @@ export function isAllowedAppVersion(version: string, allowlist: string | undefin
 		}
 	}
 	return false;
+}
+
+/** Channels stored when ACCEPTED_CHANNELS is unset or empty. */
+export const DEFAULT_ACCEPTED_CHANNELS = "release";
+
+/**
+ * True if reports from `channel` should be stored. `list` is the
+ * comma-separated ACCEPTED_CHANNELS var; unset or empty means "release".
+ */
+export function isAcceptedChannel(channel: string, list: string | undefined): boolean {
+	const value = list?.trim() ? list : DEFAULT_ACCEPTED_CHANNELS;
+	return value.split(",").some((c) => c.trim() === channel);
 }

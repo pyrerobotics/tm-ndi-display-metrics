@@ -4,6 +4,8 @@ export interface Env {
 	/** Optional Workers Rate Limiting binding (short-burst per-client limit). */
 	RATE_LIMITER?: RateLimit;
 	ALLOWED_APP_VERSIONS?: string;
+	/** Comma-separated channels to store; others get 204 and are dropped. Default "release". */
+	ACCEPTED_CHANNELS?: string;
 	MAX_LAUNCH_PER_INSTALL_PER_DAY?: string;
 	MAX_CHANGE_PER_INSTALL_PER_DAY?: string;
 	MAX_NEW_INSTALLS_PER_IP_PER_DAY?: string;

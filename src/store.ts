@@ -62,8 +62,8 @@ export async function storeReport(db: D1Database, report: Report, now: Date): Pr
 				report.arch,
 				report.tm_version,
 				report.ndi_version,
-				report.servers.local,
-				report.servers.remote,
+				report.servers_local,
+				report.servers_remote,
 			),
 	];
 
@@ -76,10 +76,10 @@ export async function storeReport(db: D1Database, report: Report, now: Date): Pr
 				transparency: d.transparency,
 				audio: d.audio ? 1 : 0,
 				resolution: d.resolution,
-				frame_rate: d.frame_rate,
+				frame_rate: Number(d.frame_rate),
 				running: d.running ? 1 : 0,
 				run_seconds: d.run_seconds,
-				screens: d.screens ?? [],
+				screens: d.screens,
 			})),
 		);
 		stmts.push(

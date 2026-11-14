@@ -39,7 +39,7 @@ function dailyChart(
 	format: (n: number) => string = fmt,
 ): string {
 	const id = `c${++chartSeq}`;
-	const W = 720;
+	const W = 960;
 	const H = 220;
 	const left = 44;
 	const right = 8;
@@ -191,7 +191,7 @@ table.data{max-width:360px}
 .fill{display:block;height:100%;background:var(--series);border-radius:0 4px 4px 0;min-width:2px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 footer{margin:28px 0 8px;font-size:.85rem}
-@media (max-width:520px){.chart svg{min-width:560px}.svalue{font-size:1.35rem}.barcell{width:40%}}
+@media (max-width:520px){.chart svg{min-width:600px}.svalue{font-size:1.35rem}.barcell{width:40%}}
 `;
 
 const hours = (n: number) => nf1.format(n);
@@ -245,7 +245,7 @@ ${shareTable("OS version", d.osVersion, installs, "Installs", latestNote)}
 ${shareTable("CPU architecture", d.arch, installs, "Installs", latestNote)}
 ${shareTable("Tournament Manager version", d.tmVersion, installs, "Installs", latestNote)}
 ${shareTable("NDI runtime version", d.ndiVersion, installs, "Installs", latestNote)}
-${shareTable("Release channel", d.channel, installs, "Installs", latestNote)}
+${shareTable("Release channel", d.channel, installs, "Installs", `${latestNote} Only channels in ACCEPTED_CHANNELS are stored.`)}
 </div>
 
 <h2>Displays</h2>

@@ -16,8 +16,82 @@ export function newIp(): string {
 	return `198.51.${Math.floor(seq / 250) % 250}.${(seq % 250) + 1}`;
 }
 
-export function validReport(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+/** The example report from the app, verbatim (channel "dev"). */
+export const APP_EXAMPLE = {
+	schema: 1,
+	install_id: "00000000-0000-4000-8000-000000000000",
+	reason: "launch",
+	app_version: "9.8.7",
+	channel: "dev",
+	os: "windows",
+	os_version: "10.0.26200",
+	arch: "x86_64",
+	tm_version: "2026_27.1.3",
+	ndi_version: "6.1.1",
+	servers_local: 1,
+	servers_remote: 1,
+	display_count: 4,
+	running_count: 1,
+	displays: [
+		{
+			type: "audience",
+			screens: ["all"],
+			transparency: "flatten",
+			audio: true,
+			resolution: "1280x720",
+			frame_rate: "59.94",
+			running: true,
+			run_seconds: 125,
+		},
+		{
+			type: "audience",
+			screens: ["intro", "rankings"],
+			transparency: "alpha",
+			audio: true,
+			resolution: "1920x1080",
+			frame_rate: "29.97",
+			running: false,
+			run_seconds: 0,
+		},
+		{
+			type: "field-queue",
+			screens: [],
+			transparency: "alpha",
+			audio: false,
+			resolution: "1920x1080",
+			frame_rate: "29.97",
+			running: false,
+			run_seconds: 0,
+		},
+		{
+			type: "pit",
+			screens: [],
+			transparency: "alpha",
+			audio: false,
+			resolution: "1920x1080",
+			frame_rate: "29.97",
+			running: false,
+			run_seconds: 0,
+		},
+	],
+};
+
+/** Set display_count and running_count to match `displays`, as the app does. */
+export function withCounts(r: Record<string, unknown>): Record<string, unknown> {
+	const displays = Array.isArray(r.displays) ? (r.displays as { running?: unknown }[]) : [];
 	return {
+		...r,
+		display_count: displays.length,
+		running_count: displays.filter((d) => d.running === true).length,
+	};
+}
+
+/**
+ * A valid report in the app's format. Counts follow `displays` unless the
+ * overrides set them explicitly.
+ */
+export function validReport(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	const r = withCounts({
 		schema: 1,
 		install_id: newInstallId(),
 		reason: "launch",
@@ -26,9 +100,10 @@ export function validReport(overrides: Record<string, unknown> = {}): Record<str
 		os: "windows",
 		os_version: "10.0.26200",
 		arch: "x86_64",
-		tm_version: "4.3.1",
+		tm_version: "2026_27.1.3",
 		ndi_version: "6.1.1",
-		servers: { local: 1, remote: 0 },
+		servers_local: 1,
+		servers_remote: 0,
 		displays: [
 			{
 				type: "audience",
@@ -36,22 +111,25 @@ export function validReport(overrides: Record<string, unknown> = {}): Record<str
 				transparency: "flatten",
 				audio: true,
 				resolution: "1920x1080",
-				frame_rate: 59.94,
+				frame_rate: "59.94",
 				running: true,
 				run_seconds: 3600,
 			},
 			{
 				type: "field-queue",
+				screens: [],
 				transparency: "alpha",
 				audio: false,
 				resolution: "1280x720",
-				frame_rate: 30,
+				frame_rate: "30",
 				running: false,
 				run_seconds: 0,
 			},
 		],
 		...overrides,
-	};
+	});
+	for (const k of ["display_count", "running_count"]) if (k in overrides) r[k] = overrides[k];
+	return r;
 }
 
 export interface PostOptions {

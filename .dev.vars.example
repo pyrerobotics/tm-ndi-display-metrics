@@ -1,2 +1,4 @@
 # Copy to .dev.vars for `wrangler dev`. Never commit .dev.vars.
 ALLOWED_APP_VERSIONS="*"
+# Dev builds of the app send channel "dev".
+ACCEPTED_CHANNELS="release,dev"
