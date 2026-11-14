@@ -2,6 +2,7 @@
 	"name": "tm-ndi-metrics-relay",
 	"version": "0.1.0",
 	"private": true,
+	"license": "MIT",
 	"description": "Anonymous usage-report relay and private dashboard for TM NDI Display Manager (Cloudflare Worker + D1).",
 	"type": "module",
 	"scripts": {

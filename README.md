@@ -244,3 +244,7 @@ src/dashboard/render.ts dashboard HTML (inline CSS and SVG, no scripts)
 migrations/             D1 schema
 test/                   Vitest tests (Workers runtime, local D1)
 ```
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
